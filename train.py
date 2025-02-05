@@ -145,16 +145,11 @@ class CustomTextClassifier(FlairTextClassifier):
             with torch.serialization.safe_globals(SAFE_CLASSES):
                 state = torch.load(str(model_path), map_location='cpu', weights_only=False)
             
-            # Get the required parameters from the state dict
-            document_embeddings = state['embeddings']  # Changed back to embeddings
-            label_dictionary = state['label_dictionary']
-            label_type = state['label_type']
-            
             # Create a new model instance with the saved parameters
             model = cls(
-                embeddings=document_embeddings,
-                label_dictionary=label_dictionary,
-                label_type=label_type
+                embeddings=state['embeddings'],
+                label_dictionary=state['label_dictionary'],
+                label_type=state['label_type']
             )
             
             # Load the state dict
