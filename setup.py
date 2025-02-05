@@ -4,7 +4,7 @@ with open("README.md", mode="r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 REQUIRED_PACKAGES = [
-    'torch>=2.1.0',
+    'torch==2.5.0',
     'flair>=0.13.0',
     'transformers>=4.36.0',
     'tqdm>=4.66.0',

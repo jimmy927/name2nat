@@ -1,52 +1,11 @@
 import os
 import random
 import argparse
-from typing import Dict, List
-from flair.data import Corpus, Dictionary, Sentence, FlairDataset
-from flair.datasets import CSVClassificationCorpus, ClassificationDataset
+from typing import List
+from flair.data import Corpus, Dictionary, Sentence
 from flair.embeddings import OneHotEmbeddings, DocumentRNNEmbeddings
-from flair.embeddings.token import StackedEmbeddings
-from flair.models import TextClassifier as FlairTextClassifier
+from flair.models import TextClassifier
 from flair.trainers import ModelTrainer
-from pathlib import Path
-import torch
-from torch.serialization import add_safe_globals
-from torch.nn import (
-    Embedding, Linear, LSTM, GRU, RNN,
-    Dropout, ReLU, Module,
-    ModuleList, Parameter, Sequential
-)
-
-# Add required classes to safe globals for PyTorch 2.6+
-SAFE_CLASSES = [
-    DocumentRNNEmbeddings,
-    StackedEmbeddings,
-    OneHotEmbeddings,
-    Embedding,
-    torch.nn.modules.sparse.Embedding,
-    Dictionary,
-    Linear,
-    torch.nn.modules.linear.Linear,
-    LSTM,
-    torch.nn.modules.rnn.LSTM,
-    GRU,
-    torch.nn.modules.rnn.GRU,
-    RNN,
-    torch.nn.modules.rnn.RNN,
-    Dropout,
-    torch.nn.modules.dropout.Dropout,
-    ReLU,
-    torch.nn.modules.activation.ReLU,
-    Module,
-    torch.nn.modules.module.Module,
-    ModuleList,
-    torch.nn.modules.container.ModuleList,
-    Parameter,
-    torch.nn.parameter.Parameter,
-    Sequential,
-    torch.nn.modules.container.Sequential
-]
-add_safe_globals(SAFE_CLASSES)
 
 def convert(name_f, nat_f, fout):
     with open(fout, 'w', encoding='utf8') as fout:
@@ -136,97 +95,6 @@ def downsample_data(lines: List[str], max_samples: int = 500) -> List[str]:
     
     return sampled_lines
 
-class CustomTextClassifier(FlairTextClassifier):
-    @classmethod
-    def load(cls, model_path):
-        """Custom load method that handles PyTorch 2.6+ loading behavior."""
-        try:
-            # First try loading with weights_only=False
-            with torch.serialization.safe_globals(SAFE_CLASSES):
-                state = torch.load(str(model_path), map_location='cpu', weights_only=False)
-            
-            # Get embeddings state
-            embeddings_state = state.get('document_embeddings', {})
-            
-            # Reconstruct OneHotEmbeddings first
-            onehot_config = embeddings_state['embeddings'][0]
-            onehot_embedding = OneHotEmbeddings(vocab_dictionary=onehot_config['vocab_dictionary'])
-            
-            # Reconstruct document embeddings with float values for dropouts
-            document_embeddings = DocumentRNNEmbeddings(
-                embeddings=[onehot_embedding],  # Pass list of reconstructed embeddings
-                hidden_size=embeddings_state['hidden_size'],
-                rnn_layers=embeddings_state['rnn_layers'],
-                reproject_words=embeddings_state['reproject_words'],
-                rnn_type=embeddings_state['rnn_type'],
-                dropout=float(embeddings_state['dropout_value']),  # Convert to float
-                word_dropout=float(embeddings_state['word_dropout_value']),  # Convert to float
-                locked_dropout=float(embeddings_state['locked_dropout_value']),  # Convert to float
-                bidirectional=embeddings_state['bidirectional']
-            )
-            
-            # Create a new model instance with the reconstructed embeddings
-            model = cls(
-                embeddings=document_embeddings,
-                label_dictionary=state['label_dictionary'],
-                label_type=state['label_type']
-            )
-            
-            # Load the state dict
-            if 'state_dict' in state:
-                model.load_state_dict(state['state_dict'])
-            model.eval()
-            return model
-        except Exception as e:
-            print(f"Error loading model: {str(e)}")
-            try:
-                # Try loading with base class method as fallback
-                with torch.serialization.safe_globals(SAFE_CLASSES):
-                    return super().load(model_path)
-            except Exception as e2:
-                print(f"Fallback loading also failed: {str(e2)}")
-                raise
-
-    def save(self, model_file: str, checkpoint: bool = False):
-        """Custom save method to ensure all necessary attributes are saved.
-        
-        Args:
-            model_file: Path to save the model to
-            checkpoint: If True, also saves training state for resuming training
-        """
-        # Get the OneHotEmbeddings instance from the list of embeddings
-        onehot_embedding = self.embeddings.embeddings.embeddings[0]
-        
-        # Save the full model state
-        model_state = {
-            'state_dict': self.state_dict(),
-            'document_embeddings': {
-                'embeddings': [{
-                    '__cls__': 'OneHotEmbeddings',
-                    'vocab_dictionary': onehot_embedding.vocab_dictionary,
-                }],  # Save OneHotEmbeddings with class info
-                'reproject_words': getattr(self.embeddings, 'reproject_words', True),
-                'rnn_type': self.embeddings.rnn.__class__.__name__,  # Get RNN type from the instance
-                'hidden_size': self.embeddings.rnn.hidden_size,  # Get from RNN instance
-                'rnn_layers': self.embeddings.rnn.num_layers,  # Get from RNN instance
-                'dropout_value': getattr(self.embeddings.dropout, 'p', 0.5),  # Get dropout probability value
-                'word_dropout_value': getattr(self.embeddings.word_dropout, 'p', 0.05),  # Get word dropout probability value
-                'locked_dropout_value': getattr(self.embeddings.locked_dropout, 'p', 0.5),  # Get locked dropout probability value
-                'bidirectional': self.embeddings.rnn.bidirectional,  # Get from RNN instance
-            },
-            'label_dictionary': self.label_dictionary,
-            'label_type': self.label_type
-        }
-        
-        # If saving checkpoint, include optimizer state
-        if checkpoint:
-            model_state['optimizer_state_dict'] = self.optimizer.state_dict() if hasattr(self, 'optimizer') else None
-            model_state['scheduler_state_dict'] = self.scheduler.state_dict() if hasattr(self, 'scheduler') else None
-            
-        # Save with safe globals context
-        with torch.serialization.safe_globals(SAFE_CLASSES):
-            torch.save(model_state, str(model_file))
-
 def main():
     parser = argparse.ArgumentParser(description="Train the Name2nat model.")
     parser.add_argument(
@@ -261,7 +129,6 @@ def main():
 
     # Load corpus
     data_folder = os.path.abspath('data')  # Use absolute path
-    column_name_map = {0: "text", 1: "nationality"}
     
     # If in debug mode, downsample the data before loading
     if args.small:
@@ -315,22 +182,8 @@ def main():
     train_data = load_classification_data(train_path)
     dev_data = load_classification_data(dev_path)
     
-    # Create a Corpus with our lists of sentences
-    class SentenceDataset(FlairDataset):
-        def __init__(self, sentences: List[Sentence]):
-            self.sentences = sentences
-
-        def __len__(self):
-            return len(self.sentences)
-
-        def __getitem__(self, index: int) -> Sentence:
-            return self.sentences[index]
-
-    corpus = Corpus(
-        train=SentenceDataset(train_data),
-        dev=SentenceDataset(dev_data),
-        test=None
-    )
+    # Create corpus using standard Flair Corpus
+    corpus = Corpus(train=train_data, dev=dev_data, test=[])
 
     # Verify corpus loaded successfully
     if not corpus.train or len(corpus.train) == 0:
@@ -355,8 +208,16 @@ def main():
     
     # Create embeddings with the character dictionary
     embeddings = [OneHotEmbeddings(vocab_dictionary=char_dict)]
-    document_embeddings = DocumentRNNEmbeddings(embeddings, bidirectional=True, hidden_size=256)
-    classifier = CustomTextClassifier(
+    document_embeddings = DocumentRNNEmbeddings(
+        embeddings=embeddings,
+        hidden_size=256,
+        rnn_type='GRU',
+        reproject_words=True,
+        reproject_words_dimension=256,
+        bidirectional=True,
+    )
+    
+    classifier = TextClassifier(
         document_embeddings,
         label_dictionary=label_dict,
         label_type='nationality'
@@ -364,12 +225,21 @@ def main():
 
     # Initialize trainer and start training
     trainer = ModelTrainer(classifier, corpus)
-    trainer.train('resources/',
-                 learning_rate=0.1,
-                 mini_batch_size=128,
-                 anneal_factor=0.5,
-                 patience=5,
-                 max_epochs=20)
+    
+    # All models are saved in resources/ with clear naming:
+    # - {prefix}-best.pt: Model with best validation performance during training
+    # - {prefix}-last.pt: Model from the last training epoch
+    model_prefix = "debug-model" if args.small else "production-model"
+    
+    # Training parameters - only using parameters supported by Flair 0.15.0
+    trainer.train(
+        base_path=os.path.join('resources', model_prefix),
+        learning_rate=0.1,
+        mini_batch_size=128,
+        anneal_factor=0.5,
+        patience=5,
+        max_epochs=20
+    )
 
 if __name__ == '__main__':
     main()
