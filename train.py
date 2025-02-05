@@ -145,9 +145,35 @@ class CustomTextClassifier(FlairTextClassifier):
             with torch.serialization.safe_globals(SAFE_CLASSES):
                 state = torch.load(str(model_path), map_location='cpu', weights_only=False)
             
-            # Create a new model instance with the saved parameters
+            # Get embeddings state
+            embeddings_state = state.get('document_embeddings', {})
+            
+            # Reconstruct document embeddings
+            document_embeddings = DocumentRNNEmbeddings(
+                embeddings=embeddings_state['embeddings'],
+                hidden_size=embeddings_state['hidden_size'],
+                rnn_layers=embeddings_state['rnn_layers'],
+                reproject_words=embeddings_state['reproject_words'],
+                rnn_type=embeddings_state['rnn_type'],
+                dropout=embeddings_state['dropout'],
+                word_dropout=embeddings_state['word_dropout'],
+                locked_dropout=embeddings_state['locked_dropout'],
+                bidirectional=embeddings_state['bidirectional']
+            )
+            
+            # Restore RNN state if available
+            if 'rnn' in embeddings_state:
+                document_embeddings.rnn = embeddings_state['rnn']
+            
+            # Restore embedding2nn if available
+            if embeddings_state.get('embedding2nn') is not None:
+                document_embeddings.embedding2nn = embeddings_state['embedding2nn']
+                if embeddings_state.get('embedding2nn_state_dict') is not None:
+                    document_embeddings.embedding2nn.load_state_dict(embeddings_state['embedding2nn_state_dict'])
+            
+            # Create a new model instance with the reconstructed embeddings
             model = cls(
-                embeddings=state['embeddings'],
+                embeddings=document_embeddings,
                 label_dictionary=state['label_dictionary'],
                 label_type=state['label_type']
             )
@@ -177,7 +203,20 @@ class CustomTextClassifier(FlairTextClassifier):
         # Save the full model state
         model_state = {
             'state_dict': self.state_dict(),
-            'embeddings': self.embeddings,  # Save the entire embeddings object
+            'document_embeddings': {
+                'embeddings': self.embeddings.embeddings,  # List[TokenEmbeddings]
+                'reproject_words': self.embeddings.reproject_words,
+                'rnn_type': self.embeddings.rnn_type,
+                'hidden_size': self.embeddings.hidden_size,
+                'rnn_layers': self.embeddings.rnn_layers,
+                'dropout': self.embeddings.dropout,
+                'word_dropout': self.embeddings.word_dropout,
+                'locked_dropout': self.embeddings.locked_dropout,
+                'bidirectional': self.embeddings.bidirectional,
+                'rnn': self.embeddings.rnn,  # Save RNN state
+                'embedding2nn': self.embeddings.embedding2nn if hasattr(self.embeddings, 'embedding2nn') else None,
+                'embedding2nn_state_dict': self.embeddings.embedding2nn.state_dict() if hasattr(self.embeddings, 'embedding2nn') else None,
+            },
             'label_dictionary': self.label_dictionary,
             'label_type': self.label_type
         }
