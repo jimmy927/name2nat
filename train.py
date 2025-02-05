@@ -355,14 +355,24 @@ def main():
 
     # Initialize trainer and start training
     trainer = ModelTrainer(classifier, corpus)
+    
+    # Separate optimizer parameters from data loading parameters
+    training_parameters = {
+        'learning_rate': 0.1,
+        'mini_batch_size': 128,
+        'anneal_factor': 0.5,
+        'patience': 5,
+        'max_epochs': 20,
+        'train_with_dev': False
+    }
+    
+    # Configure data loading separately
+    trainer.corpus_trainer.num_workers = args.num_workers
+    
+    # Start training with optimizer parameters only
     trainer.train(
         base_path='resources/',
-        learning_rate=0.1,
-        mini_batch_size=128,
-        anneal_factor=0.5,
-        patience=5,
-        max_epochs=20,
-        **{'train_with_dev': False, 'num_workers': args.num_workers}  # Pass num_workers separately
+        **training_parameters
     )
 
 if __name__ == '__main__':
