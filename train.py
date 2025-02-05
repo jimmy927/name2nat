@@ -356,20 +356,18 @@ def main():
     # Initialize trainer and start training
     trainer = ModelTrainer(classifier, corpus)
     
-    # Separate optimizer parameters from data loading parameters
+    # Training parameters including data loading configuration
     training_parameters = {
         'learning_rate': 0.1,
         'mini_batch_size': 128,
         'anneal_factor': 0.5,
         'patience': 5,
         'max_epochs': 20,
-        'train_with_dev': False
+        'train_with_dev': False,
+        'num_workers': args.num_workers  # Add num_workers here
     }
     
-    # Configure data loading separately
-    trainer.corpus_trainer.num_workers = args.num_workers
-    
-    # Start training with optimizer parameters only
+    # Start training
     trainer.train(
         base_path='resources/',
         **training_parameters
