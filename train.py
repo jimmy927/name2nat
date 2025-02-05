@@ -197,13 +197,35 @@ class CustomTextClassifier(FlairTextClassifier):
             torch.save(model_state, str(model_file))
 
 def main():
+    # Configure CPU settings for better utilization
+    torch.set_num_threads(torch.get_num_threads())  # Use all available CPU threads
+    print(f"PyTorch using {torch.get_num_threads()} CPU threads")
+    print(f"Number of CPU cores available: {os.cpu_count()}")
+    
     parser = argparse.ArgumentParser(description="Train the Name2nat model.")
     parser.add_argument(
         '--small',
         action='store_true',
         help='Train with a small subset of data for debugging.'
     )
+    parser.add_argument(
+        '--num_workers',
+        type=int,
+        default=4,
+        help='Number of worker processes for data loading'
+    )
+    parser.add_argument(
+        '--num_threads',
+        type=int,
+        default=None,
+        help='Number of PyTorch threads to use (default: auto)'
+    )
     args = parser.parse_args()
+
+    # Set number of PyTorch threads if specified
+    if args.num_threads is not None:
+        torch.set_num_threads(args.num_threads)
+        print(f"Set PyTorch threads to: {args.num_threads}")
 
     # Check source files exist
     check_file_exists('nana/train.src', 'training source')
@@ -338,7 +360,8 @@ def main():
                  mini_batch_size=128,
                  anneal_factor=0.5,
                  patience=5,
-                 max_epochs=20)
+                 max_epochs=20,
+                 num_workers=args.num_workers)
 
 if __name__ == '__main__':
     main()
