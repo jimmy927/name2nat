@@ -148,28 +148,22 @@ class CustomTextClassifier(FlairTextClassifier):
             # Get embeddings state
             embeddings_state = state.get('document_embeddings', {})
             
-            # Reconstruct document embeddings
+            # Reconstruct OneHotEmbeddings first
+            onehot_config = embeddings_state['embeddings'][0]
+            onehot_embedding = OneHotEmbeddings(vocab_dictionary=onehot_config['vocab_dictionary'])
+            
+            # Reconstruct document embeddings with float values for dropouts
             document_embeddings = DocumentRNNEmbeddings(
-                embeddings=embeddings_state['embeddings'],
+                embeddings=[onehot_embedding],  # Pass list of reconstructed embeddings
                 hidden_size=embeddings_state['hidden_size'],
                 rnn_layers=embeddings_state['rnn_layers'],
                 reproject_words=embeddings_state['reproject_words'],
                 rnn_type=embeddings_state['rnn_type'],
-                dropout=embeddings_state['dropout'],
-                word_dropout=embeddings_state['word_dropout'],
-                locked_dropout=embeddings_state['locked_dropout'],
+                dropout=float(embeddings_state['dropout_value']),  # Convert to float
+                word_dropout=float(embeddings_state['word_dropout_value']),  # Convert to float
+                locked_dropout=float(embeddings_state['locked_dropout_value']),  # Convert to float
                 bidirectional=embeddings_state['bidirectional']
             )
-            
-            # Restore RNN state if available
-            if 'rnn' in embeddings_state:
-                document_embeddings.rnn = embeddings_state['rnn']
-            
-            # Restore embedding2nn if available
-            if embeddings_state.get('embedding2nn') is not None:
-                document_embeddings.embedding2nn = embeddings_state['embedding2nn']
-                if embeddings_state.get('embedding2nn_state_dict') is not None:
-                    document_embeddings.embedding2nn.load_state_dict(embeddings_state['embedding2nn_state_dict'])
             
             # Create a new model instance with the reconstructed embeddings
             model = cls(
@@ -200,22 +194,25 @@ class CustomTextClassifier(FlairTextClassifier):
             model_file: Path to save the model to
             checkpoint: If True, also saves training state for resuming training
         """
+        # Get the OneHotEmbeddings instance from the list of embeddings
+        onehot_embedding = self.embeddings.embeddings.embeddings[0]
+        
         # Save the full model state
         model_state = {
             'state_dict': self.state_dict(),
             'document_embeddings': {
-                'embeddings': self.embeddings.embeddings,  # List[TokenEmbeddings]
-                'reproject_words': self.embeddings.reproject_words,
-                'rnn_type': self.embeddings.rnn_type,
-                'hidden_size': self.embeddings.hidden_size,
-                'rnn_layers': self.embeddings.rnn_layers,
-                'dropout': self.embeddings.dropout,
-                'word_dropout': self.embeddings.word_dropout,
-                'locked_dropout': self.embeddings.locked_dropout,
-                'bidirectional': self.embeddings.bidirectional,
-                'rnn': self.embeddings.rnn,  # Save RNN state
-                'embedding2nn': self.embeddings.embedding2nn if hasattr(self.embeddings, 'embedding2nn') else None,
-                'embedding2nn_state_dict': self.embeddings.embedding2nn.state_dict() if hasattr(self.embeddings, 'embedding2nn') else None,
+                'embeddings': [{
+                    '__cls__': 'OneHotEmbeddings',
+                    'vocab_dictionary': onehot_embedding.vocab_dictionary,
+                }],  # Save OneHotEmbeddings with class info
+                'reproject_words': getattr(self.embeddings, 'reproject_words', True),
+                'rnn_type': self.embeddings.rnn.__class__.__name__,  # Get RNN type from the instance
+                'hidden_size': self.embeddings.rnn.hidden_size,  # Get from RNN instance
+                'rnn_layers': self.embeddings.rnn.num_layers,  # Get from RNN instance
+                'dropout_value': getattr(self.embeddings.dropout, 'p', 0.5),  # Get dropout probability value
+                'word_dropout_value': getattr(self.embeddings.word_dropout, 'p', 0.05),  # Get word dropout probability value
+                'locked_dropout_value': getattr(self.embeddings.locked_dropout, 'p', 0.5),  # Get locked dropout probability value
+                'bidirectional': self.embeddings.rnn.bidirectional,  # Get from RNN instance
             },
             'label_dictionary': self.label_dictionary,
             'label_type': self.label_type
