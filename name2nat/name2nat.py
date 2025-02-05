@@ -2,13 +2,46 @@ from flair.models import TextClassifier
 from flair.data import Sentence
 import pickle
 import os
+import torch
+import warnings
 
 CKPT = os.path.dirname(os.path.abspath(__file__)) + "/best-model.pt"
 DICT = os.path.dirname(os.path.abspath(__file__)) + "/name2nats.pkl"
 
+class CustomTextClassifier(TextClassifier):
+    @classmethod
+    def load(cls, model_path):
+        # Suppress source change warnings
+        warnings.filterwarnings('ignore', category=torch.serialization.SourceChangeWarning)
+        
+        try:
+            # First try loading with default settings
+            return super().load(model_path)
+        except Exception as e:
+            try:
+                # If that fails, try with explicit torch loading
+                with torch.set_grad_enabled(False):
+                    state = torch.load(model_path, map_location='cpu')
+                    model = cls._init_model_with_state_dict(state)
+                    return model
+            except Exception as e2:
+                raise RuntimeError(f"Failed to load model. Try downgrading PyTorch to 2.0.1 and Flair to 0.12.2. Original error: {str(e2)}")
+
+    @classmethod
+    def _init_model_with_state_dict(cls, state):
+        model = cls()
+        model.load_state_dict(state)
+        model.eval()
+        return model
+
 class Name2nat:
     def __init__(self, ckpt=CKPT, name2nats=DICT):
-        self.classifier = TextClassifier.load(ckpt)
+        try:
+            self.classifier = CustomTextClassifier.load(ckpt)
+        except Exception as e:
+            print(f"Error loading model: {str(e)}")
+            print("Please ensure you have compatible versions: torch==2.0.1 and flair==0.12.2")
+            raise
         self.name2nats = self.construct(name2nats)
 
     def construct(self, name2nats):

@@ -4,7 +4,10 @@ with open("README.md", mode="r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 REQUIRED_PACKAGES = [
-    'flair',
+    'torch>=2.1.0',
+    'flair>=0.13.0',
+    'transformers>=4.36.0',
+    'tqdm>=4.66.0',
 ]
 
 setuptools.setup(
@@ -20,7 +23,7 @@ setuptools.setup(
     url="https://github.com/Kyubyong/name2nat",
     packages=setuptools.find_packages(),
     package_data={'name2nat': ['name2nat/best-model.pt', 'name2nat/name2nats.pkl']},
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     include_package_data=True,
     classifiers=[
         'Development Status :: 5 - Production/Stable',
@@ -29,7 +32,9 @@ setuptools.setup(
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
     ],
 )
