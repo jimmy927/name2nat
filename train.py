@@ -355,13 +355,15 @@ def main():
 
     # Initialize trainer and start training
     trainer = ModelTrainer(classifier, corpus)
-    trainer.train('resources/',
-                 learning_rate=0.1,
-                 mini_batch_size=128,
-                 anneal_factor=0.5,
-                 patience=5,
-                 max_epochs=20,
-                 num_workers=args.num_workers)
+    trainer.train(
+        base_path='resources/',
+        learning_rate=0.1,
+        mini_batch_size=128,
+        anneal_factor=0.5,
+        patience=5,
+        max_epochs=20,
+        **{'train_with_dev': False, 'num_workers': args.num_workers}  # Pass num_workers separately
+    )
 
 if __name__ == '__main__':
     main()
