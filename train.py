@@ -198,9 +198,21 @@ class CustomTextClassifier(FlairTextClassifier):
 
 def main():
     # Configure CPU settings for better utilization
-    torch.set_num_threads(torch.get_num_threads())  # Use all available CPU threads
-    print(f"PyTorch using {torch.get_num_threads()} CPU threads")
-    print(f"Number of CPU cores available: {os.cpu_count()}")
+    import multiprocessing
+    num_cpus = multiprocessing.cpu_count()
+    
+    # Set environment variables for better CPU utilization
+    os.environ["OMP_NUM_THREADS"] = str(num_cpus)
+    os.environ["MKL_NUM_THREADS"] = str(num_cpus)
+    os.environ["NUMEXPR_NUM_THREADS"] = str(num_cpus)
+    
+    # Let PyTorch use all cores but don't oversubscribe
+    torch.set_num_threads(num_cpus)
+    torch.set_num_interop_threads(num_cpus)
+    
+    print(f"Number of CPU cores: {num_cpus}")
+    print(f"PyTorch threads: {torch.get_num_threads()}")
+    print(f"PyTorch interop threads: {torch.get_num_interop_threads()}")
     
     parser = argparse.ArgumentParser(description="Train the Name2nat model.")
     parser.add_argument(
@@ -211,21 +223,10 @@ def main():
     parser.add_argument(
         '--num_workers',
         type=int,
-        default=4,
+        default=min(4, num_cpus-1),  # Default to 4 or num_cpus-1, whichever is smaller
         help='Number of worker processes for data loading'
     )
-    parser.add_argument(
-        '--num_threads',
-        type=int,
-        default=None,
-        help='Number of PyTorch threads to use (default: auto)'
-    )
     args = parser.parse_args()
-
-    # Set number of PyTorch threads if specified
-    if args.num_threads is not None:
-        torch.set_num_threads(args.num_threads)
-        print(f"Set PyTorch threads to: {args.num_threads}")
 
     # Check source files exist
     check_file_exists('nana/train.src', 'training source')
@@ -356,6 +357,14 @@ def main():
     # Initialize trainer and start training
     trainer = ModelTrainer(classifier, corpus)
     
+    # Print default settings before modification
+    print("\nDefault settings:")
+    print(f"Default num_workers: {getattr(trainer, '_num_workers', 'Not set')}")
+    print(f"Default PyTorch threads: {torch.get_num_threads()}")
+    print(f"Default interop threads: {torch.get_num_interop_threads()}")
+    print(f"CPU count: {multiprocessing.cpu_count()}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    
     # Training parameters for the optimizer
     training_parameters = {
         'learning_rate': 0.1,
@@ -368,6 +377,8 @@ def main():
     
     # Configure data loading
     trainer._num_workers = args.num_workers
+    print(f"\nAfter configuration:")
+    print(f"Set num_workers to: {trainer._num_workers}")
     
     # Start training
     trainer.train(
