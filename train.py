@@ -197,34 +197,11 @@ class CustomTextClassifier(FlairTextClassifier):
             torch.save(model_state, str(model_file))
 
 def main():
-    # Configure CPU settings for better utilization
-    import multiprocessing
-    num_cpus = multiprocessing.cpu_count()
-    
-    # Set environment variables for better CPU utilization
-    os.environ["OMP_NUM_THREADS"] = str(num_cpus)
-    os.environ["MKL_NUM_THREADS"] = str(num_cpus)
-    os.environ["NUMEXPR_NUM_THREADS"] = str(num_cpus)
-    
-    # Let PyTorch use all cores but don't oversubscribe
-    torch.set_num_threads(num_cpus)
-    torch.set_num_interop_threads(num_cpus)
-    
-    print(f"Number of CPU cores: {num_cpus}")
-    print(f"PyTorch threads: {torch.get_num_threads()}")
-    print(f"PyTorch interop threads: {torch.get_num_interop_threads()}")
-    
     parser = argparse.ArgumentParser(description="Train the Name2nat model.")
     parser.add_argument(
         '--small',
         action='store_true',
         help='Train with a small subset of data for debugging.'
-    )
-    parser.add_argument(
-        '--num_workers',
-        type=int,
-        default=min(4, num_cpus-1),  # Default to 4 or num_cpus-1, whichever is smaller
-        help='Number of worker processes for data loading'
     )
     args = parser.parse_args()
 
@@ -356,35 +333,12 @@ def main():
 
     # Initialize trainer and start training
     trainer = ModelTrainer(classifier, corpus)
-    
-    # Print default settings before modification
-    print("\nDefault settings:")
-    print(f"Default num_workers: {getattr(trainer, '_num_workers', 'Not set')}")
-    print(f"Default PyTorch threads: {torch.get_num_threads()}")
-    print(f"Default interop threads: {torch.get_num_interop_threads()}")
-    print(f"CPU count: {multiprocessing.cpu_count()}")
-    print(f"CUDA available: {torch.cuda.is_available()}")
-    
-    # Training parameters for the optimizer
-    training_parameters = {
-        'learning_rate': 0.1,
-        'mini_batch_size': 128,
-        'anneal_factor': 0.5,
-        'patience': 5,
-        'max_epochs': 20,
-        'train_with_dev': False
-    }
-    
-    # Configure data loading
-    trainer._num_workers = args.num_workers
-    print(f"\nAfter configuration:")
-    print(f"Set num_workers to: {trainer._num_workers}")
-    
-    # Start training
-    trainer.train(
-        base_path='resources/',
-        **training_parameters
-    )
+    trainer.train('resources/',
+                 learning_rate=0.1,
+                 mini_batch_size=128,
+                 anneal_factor=0.5,
+                 patience=5,
+                 max_epochs=20)
 
 if __name__ == '__main__':
     main()
