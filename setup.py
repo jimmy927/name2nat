@@ -4,7 +4,8 @@ with open("README.md", mode="r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 REQUIRED_PACKAGES = [
-    'flair',
+    'flair>=0.13.0',
+    'torch>=2.5.0'
 ]
 
 setuptools.setup(

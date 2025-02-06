@@ -3,7 +3,7 @@ from flair.data import Sentence
 import pickle
 import os
 
-CKPT = os.path.dirname(os.path.abspath(__file__)) + "/best-model.pt"
+CKPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources", "best-model.pt")
 DICT = os.path.dirname(os.path.abspath(__file__)) + "/name2nats.pkl"
 
 class Name2nat:
@@ -34,11 +34,14 @@ class Name2nat:
             names = [names]
 
         sentences = [Sentence(self.convert(name), use_tokenizer=True) for name in names]
-        self.classifier.predict(sentences, mini_batch_size=mini_batch_size, multi_class_prob=True, verbose=len(sentences)>1000)
+        self.classifier.predict(sentences, 
+                              mini_batch_size=mini_batch_size,
+                              return_probabilities_for_all_classes=True,
+                              verbose=len(sentences)>1000)
 
         ret = []
         for sent in sentences:
-            name = self.restore(sent.to_tagged_string()) # plain string
+            name = self.restore(sent.to_tagged_string())
             if use_dict:
                 if name in self.name2nats:
                     results = [(nat, 1.0) for nat in self.name2nats[name]]
