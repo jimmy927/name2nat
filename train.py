@@ -5,13 +5,15 @@ from flair.datasets import CSVClassificationCorpus
 from flair.embeddings import OneHotEmbeddings, DocumentRNNEmbeddings
 from flair.models import TextClassifier
 from flair.trainers import ModelTrainer
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from typing import List
 
 os.makedirs('data', exist_ok=True)
 
 def convert(name_f, nat_f, fout):
     with open(fout, 'w', encoding='utf8') as fout:
-        names = open(name_f, 'r').read().strip().splitlines()
-        nats = open(nat_f, 'r').read().strip().splitlines()
+        names = open(name_f, 'r', encoding='utf8').read().strip().splitlines()
+        nats = open(nat_f, 'r', encoding='utf8').read().strip().splitlines()
         for name, nat in zip(names, nats):
             if "train" in name_f and nat == "Korean":
                 if random.random() > 0.5:
@@ -34,13 +36,15 @@ data_folder = 'data'
 # column format indicating which columns hold the text and label(s)
 column_name_map = {0: "text", 1: "label"}
 
-# load corpus containing training, test and dev data and if CSV has a header, you can skip it
-corpus: Corpus = CSVClassificationCorpus(data_folder,
-                                         column_name_map,
-                                         train_file="train.txt",
-                                         dev_file="dev.txt",
-                                         skip_header=False,
-                                         delimiter='\t',    # tab-separated files
+# load corpus containing training, test and dev data
+corpus: Corpus = CSVClassificationCorpus(
+    data_folder,
+    column_name_map,
+    train_file="train.txt",
+    dev_file="dev.txt",
+    skip_header=False,
+    delimiter='\t',    # tab-separated files
+    label_type='label'  # Added label_type parameter
 )
 
 stats = corpus.obtain_statistics()
@@ -51,11 +55,17 @@ label_dict = corpus.make_label_dictionary()
 print(label_dict)
 
 # make a list of word embeddings
-embeddings = [OneHotEmbeddings(corpus=corpus)]
+embeddings: List[OneHotEmbeddings] = [OneHotEmbeddings(corpus=corpus)]
 
 # initialize document embedding by passing list of word embeddings
 # Can choose between many RNN types (GRU by default, to change use rnn_type parameter)
-document_embeddings = DocumentRNNEmbeddings(embeddings, bidirectional=True, hidden_size=256)
+document_embeddings = DocumentRNNEmbeddings(
+    embeddings, 
+    hidden_size=256,
+    bidirectional=True,
+    dropout=0.5,  # Add recommended dropout
+    rnn_layers=1  # Explicitly set number of layers
+)
 
 # create the text classifier
 classifier = TextClassifier(document_embeddings, label_dictionary=label_dict)
@@ -64,9 +74,14 @@ classifier = TextClassifier(document_embeddings, label_dictionary=label_dict)
 trainer = ModelTrainer(classifier, corpus)
 
 # start the training
-trainer.train('resources/',
-              learning_rate=0.1,
-              mini_batch_size=128,
-              anneal_factor=0.5,
-              patience=5,
-              max_epochs=20)
+trainer.train(
+    'resources/',
+    learning_rate=0.1,
+    mini_batch_size=128,
+    scheduler=ReduceLROnPlateau,
+    scheduler_kwargs={'factor': 0.5},  # Add factor (equivalent to old anneal_factor)
+    patience=5,
+    max_epochs=20,
+    train_with_dev=False,
+    shuffle=True,
+)
