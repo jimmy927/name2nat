@@ -3,7 +3,7 @@ _*
 temp.py
 *zip
 libs-for-AI/
-nana_clean/
+# nana_clean/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
