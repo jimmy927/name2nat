@@ -38,8 +38,8 @@ print(f"Found model at: {model_path}")
 
 my_name2nat = Name2nat()
 
-# test data
-names = open("nana/test.src", 'r', encoding='utf8').read().splitlines()
+# Use correct path for test data
+names = open("nana_clean/country/test.src", 'r', encoding='utf8').read().splitlines()
 
 with torch.no_grad():
     try:

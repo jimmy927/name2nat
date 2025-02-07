@@ -9,8 +9,10 @@ def calc_precision(hits, total):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--gt", type=str, help="ground truth file path")
-    parser.add_argument("--pred", type=str, help="prediction file path")
+    parser.add_argument("--gt", type=str, default="nana_clean/country/test.tgt",
+                       help="ground truth file path (default: nana_clean/country/test.tgt)")
+    parser.add_argument("--pred", type=str, default="test.pred",
+                       help="prediction file path (default: test.pred)")
     hp = parser.parse_args()
 
     preds = open(hp.pred, "r", encoding="utf8").read().strip().splitlines()
