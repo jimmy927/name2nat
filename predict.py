@@ -43,7 +43,7 @@ names = open("nana/test.src", 'r', encoding='utf8').read().splitlines()
 
 with torch.no_grad():
     try:
-        results = my_name2nat(names, top_n=5, use_dict=False)
+        results = my_name2nat(names, top_n=5, use_dict=False)  # type: ignore
     except RuntimeError as e:
         print(f"Error during prediction: {e}")
         print("Unexpected error with PyTorch 2.5 model")
