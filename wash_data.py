@@ -475,14 +475,14 @@ def process_files(input_dir: str, output_dir: str):
         
         # Write files
         with open(os.path.join(output_dir, "lang", f'{split}.src'), 'w', encoding='utf8') as f:
-            f.write('\n'.join(item[0] for item in cleaned_data))
+            f.write('\n'.join(item[0] for item in cleaned_data)) # type: ignore
         with open(os.path.join(output_dir, "lang", f'{split}.tgt'), 'w', encoding='utf8') as f:
-            f.write('\n'.join(item[1] for item in cleaned_data))
+            f.write('\n'.join(item[1] for item in cleaned_data)) # type: ignore
             
         with open(os.path.join(output_dir, "country", f'{split}.src'), 'w', encoding='utf8') as f:
-            f.write('\n'.join(item[0] for item in cleaned_data))
+            f.write('\n'.join(item[0] for item in cleaned_data)) # type: ignore
         with open(os.path.join(output_dir, "country", f'{split}.tgt'), 'w', encoding='utf8') as f:
-            f.write('\n'.join(item[2] for item in cleaned_data))
+            f.write('\n'.join(item[2] for item in cleaned_data)) # type: ignore
             
         print(f"Processed {len(cleaned_data)} entries for {split}")
         
