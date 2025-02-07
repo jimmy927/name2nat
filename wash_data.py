@@ -407,14 +407,35 @@ def convert_to_country_code(nationality: str) -> str:
     }
     return country_map.get(nationality.lower())
 
+def should_exclude_name(name: str) -> bool:
+    """
+    Check if a name should be excluded.
+    Excludes:
+    - Names ending with a single character (e.g., "John A")
+    - Names ending with a period
+    """
+    parts = name.split()
+
+    # Check for names ending with a single character
+    if len(parts) >= 2 and len(parts[-1]) == 1:
+        return True
+
+    # Check for names ending with a period
+    if name.endswith("."):
+        return True
+
+    return False
+
 def process_files(input_dir: str, output_dir: str):
     """Process all files and create both language and country code versions"""
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(os.path.join(output_dir, "lang"), exist_ok=True)
     os.makedirs(os.path.join(output_dir, "country"), exist_ok=True)
     
-    # Track unique conversions
+    # Track unique conversions and exclusions
     seen_nationalities = {}
+    excluded_format_count = 0
+    excluded_examples = []
     
     for split in ['train', 'dev', 'test']:
         src_file = os.path.join(input_dir, f'{split}.src')
@@ -433,6 +454,13 @@ def process_files(input_dir: str, output_dir: str):
         # Process names and both types of codes
         cleaned_data = []
         for name, nat in tqdm(zip(names, nationalities), total=len(names)):
+            # Skip names that should be excluded
+            if should_exclude_name(name):
+                excluded_format_count += 1
+                if len(excluded_examples) < 5:
+                    excluded_examples.append(name)
+                continue
+                
             cleaned_name = capitalize_name(clean_name(name))
             lang_code = convert_to_language_code(nat)
             country_code = convert_to_country_code(nat)
@@ -457,6 +485,13 @@ def process_files(input_dir: str, output_dir: str):
             f.write('\n'.join(item[2] for item in cleaned_data))
             
         print(f"Processed {len(cleaned_data)} entries for {split}")
+        
+    # Print exclusion statistics
+    if excluded_examples:
+        print("\nExamples of excluded names:")
+        for name in excluded_examples:
+            print(f"  - {name}")
+    print(f"\nTotal names excluded: {excluded_format_count}")
 
 if __name__ == "__main__":
     input_dir = "nana"
