@@ -3,16 +3,10 @@ from flair.data import Sentence
 import pickle
 import os
 
-CKPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources", "best-model.pt")
-DICT = os.path.dirname(os.path.abspath(__file__)) + "/name2nats.pkl"
-
 class Name2nat:
-    def __init__(self, ckpt=CKPT, name2nats=DICT):
-        self.classifier = TextClassifier.load(ckpt)
-        self.name2nats = self.construct(name2nats)
-
-    def construct(self, name2nats):
-         return pickle.load(open(name2nats, 'rb'))
+    def __init__(self):
+        # Load model
+        self.classifier = TextClassifier.load(os.path.join(os.path.dirname(__file__), "best-model.pt"))
 
     def convert(self, name):
         name = name.replace(" ", "▁")
@@ -29,29 +23,30 @@ class Name2nat:
         results = results[:top_n]
         return results
 
-    def __call__(self, names, top_n=1, use_dict=True, mini_batch_size=128):
-        if not isinstance(names, list):
-            names = [names]
-
-        sentences = [Sentence(self.convert(name), use_tokenizer=True) for name in names]
-        self.classifier.predict(sentences, 
-                              mini_batch_size=mini_batch_size,
-                              return_probabilities_for_all_classes=True,
-                              verbose=len(sentences)>1000)
-
-        ret = []
-        for sent in sentences:
-            name = self.restore(sent.to_tagged_string())
-            if use_dict:
-                if name in self.name2nats:
-                    results = [(nat, 1.0) for nat in self.name2nats[name]]
-                else:
-                    results = self.get_top_n_results(sent, top_n)
-            else:
-                results = self.get_top_n_results(sent, top_n)
-
-            ret.append((name, results))
-        return ret
+    def __call__(self, names, top_n=5):
+        """
+        Predict nationality for each name.
+        Args:
+            names: A list of names
+            top_n: Number of predictions to return
+        """
+        results = []
+        for name in names:
+            # Convert name format
+            name = name.replace(" ", "▁")
+            name = " ".join(char for char in name)
+            
+            # Get model predictions
+            sentence = Sentence(name)
+            self.classifier.predict(sentence)
+            probs = sentence.get_labels('label')
+            
+            # Get top N predictions
+            top_preds = sorted([(l.value, l.score) for l in probs], 
+                              key=lambda x: x[1], reverse=True)[:top_n]
+            results.append((name, top_preds))
+        
+        return results
 
 
 
