@@ -38,12 +38,12 @@ print(f"Found model at: {model_path}")
 
 my_name2nat = Name2nat()
 
-# test data
-names = open("nana/test.src", 'r', encoding='utf8').read().splitlines()
+# Use correct path for test data
+names = open("nana_clean/country/test.src", 'r', encoding='utf8').read().splitlines()
 
 with torch.no_grad():
     try:
-        results = my_name2nat(names, top_n=5, use_dict=False)
+        results = my_name2nat(names, top_n=5, use_dict=False)  # type: ignore
     except RuntimeError as e:
         print(f"Error during prediction: {e}")
         print("Unexpected error with PyTorch 2.5 model")
@@ -51,6 +51,6 @@ with torch.no_grad():
     
 with open("test.pred", "w", encoding="utf8") as fout:
     for r in results:
-        preds = r[-1]
+        preds = r[-1] # type: ignore
         preds = ",".join(each[0] for each in preds)
         fout.write(preds + "\n")

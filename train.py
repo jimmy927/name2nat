@@ -24,47 +24,70 @@ parser.add_argument('--mini-batch-size', type=int, default=128,
                    help='Size of mini-batches during training. Default: 128. '
                         'Larger values use more memory but train faster. '
                         'Reduce this if you get out-of-memory errors.')
+parser.add_argument('--everything', action='store_true',
+                   help='Train on all data (including test data) for production')
 args = parser.parse_args()
 
 os.makedirs('data', exist_ok=True)
 
-def convert(name_f, nat_f, fout, sample_percentage=100.0, sample_dev=False):
-    with open(fout, 'w', encoding='utf8') as fout:
-        names = open(name_f, 'r', encoding='utf8').read().strip().splitlines()
-        nats = open(nat_f, 'r', encoding='utf8').read().strip().splitlines()
-        
-        print(f"\nProcessing {name_f}:")
-        print(f"Total samples available: {len(names)}")
-        
-        # If sampling is requested (and it's either train or we want to sample dev too)
-        if sample_percentage < 100.0 and ('train' in name_f or sample_dev):
-            combined = list(zip(names, nats))
-            sample_size = max(int(len(combined) * sample_percentage / 100.0), 1)
-            combined = random.sample(combined, sample_size)
-            names, nats = zip(*combined)
-            print(f"Using {sample_percentage}% of data: selected {len(names)} samples")
-        else:
-            print(f"Using all {len(names)} samples")
-        
-        for name, nat in zip(names, nats):
-            if "train" in name_f and nat == "Korean":
-                if random.random() > 0.5:
-                    name = name.replace("-", "")
-                if random.random() > 0.5:
-                    columns = name.split(" ", 1)
-                    if len(columns)==2:
-                        last, first = columns
-                        name = first + " " + last
-            name = name.replace(" ", "▁")
-            name = " ".join(char for char in name)
-            fout.write(f"{name}\t{nat}\n")
+def convert(name_f, nat_f, fout_handle, sample_percentage=100.0):
+    """Convert source files to Flair format and write to output file handle"""
+    names = open(name_f, 'r', encoding='utf8').read().strip().splitlines()
+    nats = open(nat_f, 'r', encoding='utf8').read().strip().splitlines()
+    
+    print(f"\nProcessing {name_f}:")
+    print(f"Total samples available: {len(names)}")
+    
+    # If sampling is requested - apply to all files
+    if sample_percentage < 100.0:
+        combined = list(zip(names, nats))
+        sample_size = max(int(len(combined) * sample_percentage / 100.0), 1)
+        combined = random.sample(combined, sample_size)
+        names, nats = zip(*combined)
+        print(f"Using {sample_percentage}% of data: selected {len(names)} samples")
+    else:
+        print(f"Using all {len(names)} samples")
+    
+    for name, nat in zip(names, nats):
+        # Keep Korean name handling only for train data
+        if "train" in name_f and nat == "Korean":
+            if random.random() > 0.5:
+                name = name.replace("-", "")
+            if random.random() > 0.5:
+                columns = name.split(" ", 1)
+                if len(columns)==2:
+                    last, first = columns
+                    name = first + " " + last
+        name = name.replace(" ", "▁")
+        name = " ".join(char for char in name)
+        fout_handle.write(f"{name}\t{nat}\n")
 
-# Update convert calls to use either --small or --sample-pct
+# First combine train data with ODI data
 sample_pct = 0.1 if args.small else args.sample_pct
-convert('nana/train.src', 'nana/train.tgt', 'data/train.txt', 
-        sample_percentage=sample_pct, sample_dev=args.sample_dev)
-convert('nana/dev.src', 'nana/dev.tgt', 'data/dev.txt', 
-        sample_percentage=sample_pct if args.sample_dev else 100.0)
+
+# Write training data
+with open('data/train.txt', 'w', encoding='utf8') as fout:
+    if args.everything:
+        # Use all data for training
+        for split in ['train', 'dev', 'test']:
+            convert(f'nana_clean/country/{split}.src', 
+                   f'nana_clean/country/{split}.tgt', 
+                   fout, sample_percentage=sample_pct)
+        # Add ODI data
+        convert('nana_clean/country/odi.country.src',
+               'nana_clean/country/odi.country.tgt',
+               fout, sample_percentage=sample_pct)
+    else:
+        # Normal mode: train+dev+odi
+        convert('nana_clean/country/train.src', 'nana_clean/country/train.tgt',
+               fout, sample_percentage=sample_pct)
+        convert('nana_clean/country/odi.country.src', 'nana_clean/country/odi.country.tgt',
+               fout, sample_percentage=sample_pct)
+
+# Write dev data (also sampled)
+with open('data/dev.txt', 'w', encoding='utf8') as fout:
+    convert('nana_clean/country/dev.src', 'nana_clean/country/dev.tgt', fout,
+           sample_percentage=sample_pct)
 
 # this is the folder in which train, test and dev files reside
 data_folder = 'data'
@@ -72,15 +95,16 @@ data_folder = 'data'
 # column format indicating which columns hold the text and label(s)
 column_name_map = {0: "text", 1: "label"}
 
-# load corpus containing training, test and dev data
-corpus: Corpus = CSVClassificationCorpus(
+# Use both files in Flair
+corpus = CSVClassificationCorpus(
     data_folder,
     column_name_map,
     train_file="train.txt",
     dev_file="dev.txt",
+    test_file=None,  # Tell Flair we handle testing separately
     skip_header=False,
-    delimiter='\t',    # tab-separated files
-    label_type='label'  # Added label_type parameter
+    delimiter='\t',
+    label_type='label'
 )
 
 stats = corpus.obtain_statistics()
