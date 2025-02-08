@@ -1,4 +1,4 @@
-from fix_path import fix_path
+from name2nat.fix_path import fix_path
 fix_path()
 
 import sys

@@ -17,7 +17,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/jimmy927/name2nat",
     packages=setuptools.find_packages(),
-    package_data={"name2nat": ["name2nat/best-model.pt"]},
+    package_data={"name2nat": ["name2nat/best-model.pt", "name2nat/fix_path.py"]},
     python_requires=">=3.6",
     include_package_data=True,
     classifiers=[

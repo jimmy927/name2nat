@@ -1,6 +1,7 @@
+from name2nat.fix_path import fix_path
+fix_path()
 from flair.models import TextClassifier
 from flair.data import Sentence
-import pickle
 import os
 
 class Name2nat:
