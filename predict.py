@@ -51,6 +51,6 @@ with torch.no_grad():
     
 with open("test.pred", "w", encoding="utf8") as fout:
     for r in results:
-        preds = r[-1]
+        preds = r[-1] # type: ignore
         preds = ",".join(each[0] for each in preds)
         fout.write(preds + "\n")
