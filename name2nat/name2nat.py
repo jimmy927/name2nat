@@ -30,6 +30,9 @@ class Name2nat:
             names: A list of names
             top_n: Number of predictions to return
         """
+        if not isinstance(names, list):
+            names = [names]
+        
         results = []
         for name in names:
             # Convert name format
@@ -38,13 +41,14 @@ class Name2nat:
             
             # Get model predictions
             sentence = Sentence(name)
-            self.classifier.predict(sentence)
-            probs = sentence.get_labels('label')
+            self.classifier.predict(sentence, 
+                                  return_probabilities_for_all_classes=True)
+            probs = sentence.get_labels()
             
-            # Get top N predictions
-            top_preds = sorted([(l.value, l.score) for l in probs], 
-                              key=lambda x: x[1], reverse=True)[:top_n]
-            results.append((name, top_preds))
+            # Get all predictions sorted by probability
+            predictions = sorted([(l.value, l.score) for l in probs], 
+                              key=lambda x: x[1], reverse=True)
+            results.append((name, predictions))
         
         return results
 
